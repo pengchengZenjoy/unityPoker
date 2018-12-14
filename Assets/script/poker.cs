@@ -4,16 +4,32 @@ using UnityEngine;
 
 public class poker : MonoBehaviour {
 
+	private enum Status 
+	{ 
+		Moving = 0, 
+		Smooth = 1, 
+		End = 2,
+	};
+
 	public float pokerWidth;
 	public float pokerHeight;
 	public float pokerDiv;
 	public float pokerRadius;
 	public float touchPercent;
+	public float RotationFrame;
+	public float RotationAnger;
+	public float SmoothFrame;
+	public float SmoothAnger;
+	private Status curStatus;
+	private int actionFrame;
 	// Use this for initialization
 	void Start () {
-		/*Vector3[] newVertices = { new Vector3(-1, -1, 0), new Vector3(-1, 1, 0), new Vector3(1, 1, 0), new Vector3(1, -1, 0) };
-        Vector2[] newUV = { new Vector2(0, 0), new Vector2(0, 1), new Vector2(1, 1), new Vector2(1, 0) };
-        int[] newTriangles = {0,2,1,0,3,2};*/
+        actionFrame = 0;
+        RotationFrame = 50.0f;
+        RotationAnger = 3.1415926f/3.0f;
+        SmoothFrame = 50.0f;
+        SmoothAnger = 3.1415926f/4.0f;
+        curStatus = Status.Moving;
         pokerWidth = 2.0f;
         pokerHeight = 2.0f;
         pokerDiv = 30.0f;
@@ -70,7 +86,7 @@ public class poker : MonoBehaviour {
         mesh.triangles = newTriangles;
 	}
 	
-	void changeVertices () {
+	void calMoveVertices (float rotation) {
 		Mesh mesh = GetComponent<MeshFilter>().mesh;
 		Vector3[] newVertices = mesh.vertices;
 		float pointNum = pokerDiv*2.0f + 2.0f;
@@ -111,6 +127,17 @@ public class poker : MonoBehaviour {
 					posZ = pokerRadius * (1.0f- Mathf.Cos(arc));
 				}
 			}
+
+			float y1 = posY;
+			float z1 = posZ;
+			float y2 = pokerHeight;
+			float z2 = 0.0f;
+			float sinRat = Mathf.Sin(rotation);
+			float cosRat = Mathf.Cos(rotation);
+			posY=(y1-y2)*cosRat-(z1-z2)*sinRat+y2;
+			posZ=(z1-z2)*cosRat+(y1-y2)*sinRat+z2;
+			posY = posY - pokerHeight/2.0f*(1.0f-cosRat);
+
 			posY= posY + startPosY;
 			newVertices[i].x = posX;
 			newVertices[i].y = posY;
@@ -118,6 +145,64 @@ public class poker : MonoBehaviour {
 		}
 		mesh.vertices = newVertices;
 	}
+
+	void calSmoothVertices (float rotation) {		
+		Mesh mesh = GetComponent<MeshFilter>().mesh;
+		Vector3[] newVertices = mesh.vertices;
+		float pointNum = pokerDiv*2.0f + 2.0f;
+ 		float heightDis = pokerHeight/pokerDiv;
+ 		float startPosX = -pokerWidth/2.0f;
+ 		float startPosY = -pokerHeight/2.0f;
+		float cl = pokerHeight/5.0f;
+		float sl = (pokerHeight - cl)/2.0f;
+		float radii = (cl/rotation)/2.0f;
+		float sinRot = Mathf.Sin(rotation);
+		float cosRot = Mathf.Cos(rotation);
+		float distance = radii*sinRot;
+		float centerY = pokerHeight/2.0f;
+		float poxY1 = centerY - distance;
+		float poxY2 = centerY + distance;
+		float posZ1 = sl*sinRot;
+
+ 		for (int i = 0; i < pointNum; i++)
+		{
+			float posX = startPosX;
+			float posY = startPosY;
+			float posZ = 0.0f;
+			if(i%2 == 0){
+				posY = (i/2.0f)*heightDis;
+			}else{
+				posX = startPosX+pokerHeight;
+				posY = ((i-1.0f)/2.0f)*heightDis;
+			}
+			if(posY <= sl){
+				float length = sl - posY;
+				posY = poxY1 - length*cosRot;
+				posZ = posZ1 - length*sinRot;
+			}else if(posY < (sl+cl)){
+				float el = posY - sl;
+				float rotation2 = -el/radii;
+				float x1 = poxY1;
+				float y1 = posZ1;
+				float x2 = centerY;
+				float y2 = posZ1 - radii*cosRot;
+				float sinRot2 = Mathf.Sin(rotation2);
+				float cosRot2 = Mathf.Cos(rotation2);
+				posY=(x1-x2)*cosRot2-(y1-y2)*sinRot2+x2;
+				posZ=(y1-y2)*cosRot2+(x1-x2)*sinRot2+y2;
+			}else if(posY <= pokerHeight){
+				float length = posY - cl - sl;
+				posY = poxY2 + length*cosRot;
+				posZ = posZ1 - length*sinRot;
+			}
+			posY= posY + startPosY;
+			newVertices[i].x = posX;
+			newVertices[i].y = posY;
+			newVertices[i].z = posZ;
+		}
+		mesh.vertices = newVertices;
+	}
+
 	// Update is called once per frame
 	void Update () {
 		Debug.Log("Input.touchCount="+Input.touchCount);
@@ -138,6 +223,17 @@ public class poker : MonoBehaviour {
 				touchPercent = 0;
 			}
         }
-		changeVertices ();
+        touchPercent = 0.5f;
+		
+		actionFrame = actionFrame + 1;
+		if(actionFrame <= RotationFrame){
+			calMoveVertices (-RotationAnger*actionFrame/RotationFrame);
+		}else if(actionFrame < (RotationFrame+SmoothFrame)){
+			float scale = (actionFrame - RotationFrame)/SmoothFrame;
+			float rotation = Mathf.Max(0.01f,SmoothAnger*(1.0f-scale));
+			calSmoothVertices(rotation);
+		}else{
+			calMoveVertices(0.0f);
+		}
 	}
 }
